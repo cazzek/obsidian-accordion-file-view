@@ -46,7 +46,6 @@ class AccordionFileView extends ItemView {
   constructor(leaf: WorkspaceLeaf, plugin: AccordionFilePlugin) {
     super(leaf);
     this.plugin = plugin;
-    this.handleVaultChange = this.handleVaultChange.bind(this);
   }
 
   getViewType(): string {
@@ -62,14 +61,30 @@ class AccordionFileView extends ItemView {
   }
 
   async onOpen(): Promise<void> {
-    this.registerEvent(this.app.vault.on("create", this.handleVaultChange));
-    this.registerEvent(this.app.vault.on("delete", this.handleVaultChange));
-    this.registerEvent(this.app.vault.on("rename", this.handleVaultChange));
-    this.registerEvent(this.app.vault.on("modify", this.handleVaultChange));
+    this.registerEvent(
+      this.app.vault.on("create", () => {
+        this.handleVaultChange();
+      }),
+    );
+    this.registerEvent(
+      this.app.vault.on("delete", () => {
+        this.handleVaultChange();
+      }),
+    );
+    this.registerEvent(
+      this.app.vault.on("rename", () => {
+        this.handleVaultChange();
+      }),
+    );
+    this.registerEvent(
+      this.app.vault.on("modify", () => {
+        this.handleVaultChange();
+      }),
+    );
     await this.render();
   }
 
-  onClose(): void {
+  async onClose(): Promise<void> {
     if (this.refreshTimer !== null) {
       window.clearTimeout(this.refreshTimer);
       this.refreshTimer = null;
@@ -138,11 +153,13 @@ class AccordionFileView extends ItemView {
       text: this.plugin.settings.includeTxtFiles ? "TXT: On" : "TXT: Off",
       type: "button",
     });
-    toggleButton.addEventListener("click", async () => {
-      this.plugin.settings.includeTxtFiles = !this.plugin.settings.includeTxtFiles;
-      toggleButton.textContent = this.plugin.settings.includeTxtFiles ? "TXT: On" : "TXT: Off";
-      await this.plugin.saveSettings();
-      await this.render();
+    toggleButton.addEventListener("click", () => {
+      void (async () => {
+        this.plugin.settings.includeTxtFiles = !this.plugin.settings.includeTxtFiles;
+        toggleButton.textContent = this.plugin.settings.includeTxtFiles ? "TXT: On" : "TXT: Off";
+        await this.plugin.saveSettings();
+        await this.render();
+      })();
     });
 
     const files = this.getFiles();
@@ -169,11 +186,11 @@ class AccordionFileView extends ItemView {
       });
 
       const summaryText = summary.createDiv({ cls: "accordion-file-view-summary-text" });
-      summaryText.createEl("span", {
+      summaryText.createSpan({
         text: file.basename,
         cls: "accordion-file-view-file-name",
       });
-      summaryText.createEl("span", {
+      summaryText.createSpan({
         text: file.path,
         cls: "accordion-file-view-file-path",
       });
@@ -192,25 +209,25 @@ class AccordionFileView extends ItemView {
 
       const body = details.createDiv({ cls: "accordion-file-view-body" });
 
-      details.addEventListener("toggle", async () => {
-        if (details.open) {
-          this.openPath = file.path;
-          for (const other of Array.from(
-            list.querySelectorAll("details"),
-          ) as HTMLDetailsElement[]) {
-            if (other !== details) {
-              other.open = false;
+      details.addEventListener("toggle", () => {
+        void (async () => {
+          if (details.open) {
+            this.openPath = file.path;
+            for (const other of Array.from(list.querySelectorAll("details"))) {
+              if (other instanceof HTMLDetailsElement && other !== details) {
+                other.open = false;
+              }
             }
-          }
 
-          if (!body.dataset.loaded) {
-            body.dataset.loaded = "loading";
-            await this.renderPreview(file, body);
-            body.dataset.loaded = "true";
+            if (!body.dataset.loaded) {
+              body.dataset.loaded = "loading";
+              await this.renderPreview(file, body);
+              body.dataset.loaded = "true";
+            }
+          } else if (this.openPath === file.path) {
+            this.openPath = "";
           }
-        } else if (this.openPath === file.path) {
-          this.openPath = "";
-        }
+        })();
       });
 
       if (this.openPath === file.path) {
@@ -273,7 +290,7 @@ class AccordionFileView extends ItemView {
         const previewHost = containerEl.createDiv({
           cls: "markdown-preview-view markdown-rendered accordion-file-view-markdown",
         });
-        await MarkdownRenderer.renderMarkdown(text, previewHost, file.path, this.plugin);
+        await MarkdownRenderer.render(this.app, text, previewHost, file.path, this.plugin);
         return;
       }
 
@@ -304,14 +321,13 @@ class AccordionFileSettingTab extends PluginSettingTab {
   display(): void {
     const { containerEl } = this;
     containerEl.replaceChildren();
-    containerEl.createEl("h2", { text: "Accordion File View" });
-    containerEl.createEl("p", {
-      text: "Set an optional folder to narrow the file list. Leave it blank to scan the whole vault.",
-    });
+    new Setting(containerEl).setName("Accordion File View").setHeading();
 
     new Setting(containerEl)
       .setName("Target folder")
-      .setDesc("Vault-relative folder path, for example 設定資料 or シナリオ.")
+      .setDesc(
+        "Vault-relative folder path, for example 設定資料 or シナリオ. Leave blank to scan the whole vault.",
+      )
       .addText((text) =>
         text
           .setPlaceholder("設定資料")
@@ -354,19 +370,20 @@ export default class AccordionFilePlugin extends Plugin {
   settings: AccordionFileSettings = DEFAULT_SETTINGS;
 
   async onload(): Promise<void> {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const data = (await this.loadData()) as Partial<AccordionFileSettings> | null;
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, data ?? {});
 
     this.registerView(VIEW_TYPE_ACCORDION_FILE, (leaf) => new AccordionFileView(leaf, this));
 
-    this.addRibbonIcon("layers-3", "Open Accordion File View", async () => {
-      await this.activateView();
+    this.addRibbonIcon("layers-3", "Open Accordion File View", () => {
+      void this.activateView();
     });
 
     this.addCommand({
-      id: "open-accordion-file-view",
-      name: "Open Accordion File View",
-      callback: async () => {
-        await this.activateView();
+      id: "open",
+      name: "Open",
+      callback: () => {
+        void this.activateView();
       },
     });
 
@@ -383,7 +400,7 @@ export default class AccordionFilePlugin extends Plugin {
     const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_ACCORDION_FILE);
 
     if (leaves.length > 0) {
-      this.app.workspace.revealLeaf(leaves[0]);
+      await this.app.workspace.revealLeaf(leaves[0]);
       return;
     }
 
@@ -392,7 +409,7 @@ export default class AccordionFilePlugin extends Plugin {
       type: VIEW_TYPE_ACCORDION_FILE,
       active: true,
     });
-    this.app.workspace.revealLeaf(leaf);
+    await this.app.workspace.revealLeaf(leaf);
   }
 
   async saveSettings(): Promise<void> {

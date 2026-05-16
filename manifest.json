@@ -1,8 +1,8 @@
 {
   "id": "accordion-file-view",
   "name": "Accordion File View",
-  "version": "0.1.0",
-  "minAppVersion": "1.5.0",
+  "version": "0.1.1",
+  "minAppVersion": "1.7.2",
   "description": "Browse markdown and text files in an accordion-style preview view.",
   "author": "cazzek",
   "authorUrl": "https://github.com/cazzek",

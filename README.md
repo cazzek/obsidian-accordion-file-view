@@ -37,13 +37,18 @@ npm run dev
 
 ## Release Files
 
+GitHub release assets (upload only these three files):
+
 - `manifest.json`
 - `main.js`
 - `styles.css`
-- `versions.json`
+
+Repository root (not release assets):
+
+- `versions.json` — keep in the repo and sync when bumping the plugin version
 
 ## Publishing Notes
 
 - Commit the generated `main.js`, `manifest.json`, and `styles.css` to the repository
-- Keep `versions.json` in sync when you bump the plugin version
-- Create a GitHub release and upload `manifest.json`, `main.js`, `styles.css`, and `versions.json`
+- Keep `versions.json` in the repository root in sync when you bump the plugin version
+- Create a GitHub release and upload only `manifest.json`, `main.js`, and `styles.css`
